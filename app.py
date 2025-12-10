@@ -5,39 +5,94 @@ from PIL import Image
 import json
 import io
 import zipfile
-import base64
 
-# ================= 1. 配置与美化 (复刻 React UI 风格) =================
-st.set_page_config(page_title="Amazon Listing Architect", page_icon="🚀", layout="wide")
+# ================= 1. 深度美化配置 (整容核心) =================
+st.set_page_config(
+    page_title="Amazon Listing Architect",
+    page_icon="✨",
+    layout="wide",
+    initial_sidebar_state="collapsed" # 默认收起侧边栏，让主界面更宽
+)
 
-# 注入 CSS: 复刻 Tailwind CSS 的 Slate/Indigo 风格 + 亚马逊预览样式
+# 注入 CSS: 强制覆盖 Streamlit 原生样式，模仿 Google AI Studio 风格
 st.markdown("""
 <style>
-    /* 全局字体与背景 */
-    .stApp { background-color: #F8FAFC; font-family: 'Inter', sans-serif; }
+    /* 全局字体与背景 - 模仿 Google Material Design */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
     
-    /* 卡片风格 */
-    .css-card {
-        background-color: white;
-        padding: 24px;
-        border-radius: 12px;
-        border: 1px solid #E2E8F0;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        margin-bottom: 24px;
+    .stApp {
+        background-color: #F0F4F9; /* 谷歌浅灰背景 */
+        font-family: 'Inter', sans-serif;
     }
     
-    /* 步骤条样式 */
-    .step-active { color: #4F46E5; font-weight: bold; border-bottom: 2px solid #4F46E5; }
-    .step-inactive { color: #64748B; }
+    /* 隐藏顶部红线和菜单 */
+    header {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
     
-    /* 亚马逊预览页专用 CSS */
-    .amz-container { font-family: "Amazon Ember", Arial, sans-serif; background: white; color: #0F1111; padding: 20px; }
-    .amz-title { font-size: 24px; line-height: 32px; font-weight: 400; color: #0F1111; }
-    .amz-price { color: #B12704; font-size: 28px; }
-    .amz-bullet { margin-bottom: 8px; font-size: 14px; }
-    .amz-buybox { border: 1px solid #D5D9D9; border-radius: 8px; padding: 18px; }
-    .amz-btn-yellow { background: #FFD814; border-color: #FCD200; border-radius: 20px; width: 100%; padding: 8px; border-style: solid; border-width: 1px; cursor: pointer; }
-    .amz-btn-orange { background: #FFA41C; border-color: #FF8F00; border-radius: 20px; width: 100%; padding: 8px; border-style: solid; border-width: 1px; cursor: pointer; margin-top: 10px;}
+    /* 卡片容器风格 */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        max-width: 95% !important;
+    }
+    
+    /* 自定义卡片 */
+    .st-card {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        border: 1px solid #E1E3E1;
+    }
+    
+    /* 按钮美化 - 谷歌蓝 */
+    div.stButton > button {
+        border-radius: 20px;
+        background-color: #0B57D0;
+        color: white;
+        border: none;
+        padding: 10px 24px;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+    div.stButton > button:hover {
+        background-color: #0842A0;
+        box-shadow: 0 4px 8px rgba(11, 87, 208, 0.3);
+    }
+    div.stButton > button:active {
+        transform: scale(0.98);
+    }
+    
+    /* 输入框美化 */
+    .stTextInput > div > div > input {
+        border-radius: 8px;
+        border: 1px solid #C4C7C5;
+    }
+    
+    /* 侧边栏美化 */
+    [data-testid="stSidebar"] {
+        background-color: #FFFFFF;
+        border-right: 1px solid #E1E3E1;
+    }
+    
+    /* 标题样式 */
+    h1, h2, h3 {
+        color: #1F1F1F;
+        font-weight: 600;
+    }
+    
+    /* 自定义进度样式 */
+    .step-box {
+        background: white;
+        padding: 10px 20px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border: 1px solid #E1E3E1;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -53,7 +108,8 @@ except:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai.configure(api_key=GOOGLE_API_KEY)
 
-# ================= 3. 商业逻辑 (照旧) =================
+# ================= 3. 核心功能函数 (逻辑层) =================
+# ... (保持原有的商业逻辑不变，确保稳定) ...
 def login(u, p):
     try:
         res = supabase.table("users").select("*").eq("username", u).eq("password", p).execute()
@@ -87,367 +143,185 @@ def deduct(u, cost):
         return True
     except: return False
 
-# ================= 4. AI 核心大脑 (1:1 移植自 React services/gemini.js) =================
-
+# --- AI 函数 ---
 def parse_json(text):
-    text = text.replace("```json", "").replace("```", "").strip()
-    # 处理可能的意外字符
-    try: return json.loads(text)
+    try: return json.loads(text.replace("```json", "").replace("```", "").strip())
     except: return None
 
-# 1. 识别产品
-def ai_identify(image):
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    prompt = """
-    Analyze product image. Extract info in Chinese.
-    Output strictly JSON: {
-        "productName": "short name",
-        "material": "material",
-        "features": "key features",
-        "usage": "usage scenario",
-        "targetAudience": "who is it for"
-    }
-    """
+def ai_process(prompt, image=None, model_type="flash"):
+    model_name = "gemini-1.5-pro" if model_type == "pro" else "gemini-1.5-flash"
+    model = genai.GenerativeModel(model_name)
     try:
-        res = model.generate_content([prompt, image])
-        return parse_json(res.text)
-    except: return None
+        content = [prompt, image] if image else [prompt]
+        res = model.generate_content(content)
+        return res.text
+    except Exception as e: return f"Error: {e}"
 
-# 2. 推荐类目
-def ai_recommend_cat(info):
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    prompt = f"""
-    Based on: {json.dumps(info, ensure_ascii=False)}.
-    Recommend 5 Amazon US Browse Node paths.
-    Output strictly JSON: {{ "categories": ["Category 1", "Category 2"...] }}
-    """
-    try:
-        res = model.generate_content(prompt)
-        return parse_json(res.text)
-    except: return None
-
-# 3. 生成文案 (Gemini Pro)
-def ai_write_listing(image, info, cat, brand):
-    model = genai.GenerativeModel("gemini-1.5-pro")
-    prompt = f"""
-    Role: Expert Amazon Listing Optimizer for US Market.
-    Context: Brand={brand}, Category={cat}, Info={json.dumps(info, ensure_ascii=False)}.
-    Task:
-    1. Title: Max 200 chars, SEO optimized, include Brand.
-    2. Bullets: 5 points, benefits-focused.
-    3. Description: HTML formatted (<br>, <b>).
-    
-    Output strictly JSON: {{
-        "titleEn": "...", "titleCn": "...",
-        "bullets": [{{"en": "...", "cn": "..."}} (5 items)],
-        "descriptionEn": "HTML...", "descriptionCn": "..."
-    }}
-    """
-    try:
-        res = model.generate_content([prompt, image])
-        return parse_json(res.text)
-    except: return None
-
-# 4. 视觉规划
-def ai_plan_visuals(listing_data, plan_type="main"):
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    task = "1 Main Image, 4 Secondary Images" if plan_type == "main" else "4 A+ Content Modules"
-    prompt = f"""
-    Plan Amazon images ({task}) for: {listing_data.get('titleEn', '')}.
-    Output strictly JSON List: [{{ "label": "Main Image", "prompt": "English prompt...", "promptCn": "中文...", "type": "{plan_type}" }}, ...]
-    """
-    try:
-        res = model.generate_content(prompt)
-        return parse_json(res.text)
-    except: return []
-
-# 5. 视频脚本
-def ai_video_script(title):
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    prompt = f"Write a 15s video script prompt for AI generator for: {title}. Output text only."
-    try: return model.generate_content(prompt).text
-    except: return ""
-
-# ================= 5. HTML 预览生成器 (复刻 AmazonPreview.tsx) =================
-def render_amazon_preview(listing):
-    html = f"""
-    <div class="amz-container">
-        <div style="display:flex; gap:30px; flex-wrap:wrap;">
-            <!-- Left: Images Mock -->
-            <div style="flex:1; min-width:300px;">
-                <div style="border:1px solid #eee; padding:10px; text-align:center; height:400px; display:flex; align-items:center; justify-content:center; background:#f8f8f8; color:#999;">
-                    Main Image Placeholder
-                </div>
-                <div style="display:flex; gap:10px; margin-top:10px; justify-content:center;">
-                    <div style="width:40px; height:40px; border:1px solid #ccc;"></div>
-                    <div style="width:40px; height:40px; border:1px solid #ccc;"></div>
-                    <div style="width:40px; height:40px; border:1px solid #ccc;"></div>
-                </div>
-            </div>
-            
-            <!-- Center: Info -->
-            <div style="flex:1.5; min-width:300px;">
-                <h1 class="amz-title">{listing.get('titleEn', 'Product Title')}</h1>
-                <div style="color:#007185; font-size:14px; margin-bottom:15px;">
-                    ★★★★★ <span style="margin-left:5px">4,821 ratings</span>
-                </div>
-                <hr style="border-top: 1px solid #e7e7e7;">
-                <div style="margin:15px 0;">
-                    <span style="font-size:14px; vertical-align:top;">$</span>
-                    <span style="font-size:28px; font-weight:500;">29</span>
-                    <span style="font-size:14px; vertical-align:top;">99</span>
-                </div>
-                
-                <div style="font-weight:bold; margin-bottom:5px;">About this item</div>
-                <ul style="padding-left:20px;">
-                    {''.join([f'<li class="amz-bullet">{b["en"]}</li>' for b in listing.get('bullets', [])])}
-                </ul>
-            </div>
-            
-            <!-- Right: Buy Box -->
-            <div style="flex:0.5; min-width:200px;">
-                <div class="amz-buybox">
-                    <div style="color:#B12704; font-size:18px; font-weight:bold;">$29.99</div>
-                    <div style="color:#007600; font-size:18px; margin:5px 0;">In Stock</div>
-                    <button class="amz-btn-yellow">Add to Cart</button>
-                    <button class="amz-btn-orange">Buy Now</button>
-                    <div style="font-size:12px; color:#565959; margin-top:10px;">
-                        🔒 Secure transaction
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div style="margin-top:40px;">
-            <h2 style="font-size:20px; font-weight:700; color:#CC6600;">Product Description</h2>
-            <div style="font-size:14px; line-height:1.5;">
-                {listing.get('descriptionEn', '')}
-            </div>
-        </div>
-    </div>
-    """
-    return html
-
-# ================= 6. 主程序逻辑 =================
+# ================= 4. 界面渲染 (UI层) =================
 
 if "user" not in st.session_state: st.session_state["user"] = None
-if "step" not in st.session_state: st.session_state["step"] = 1
-# 数据仓库
-if "data" not in st.session_state:
-    st.session_state["data"] = {
-        "image": None, "brand": "", "info": {}, "categories": [], 
-        "listing": {}, "image_plan": [], "aplus_plan": [], "video": ""
-    }
+if "data" not in st.session_state: 
+    st.session_state["data"] = {"image": None, "info": None, "listing": None, "visuals": None}
 
-# --- 侧边栏 ---
+# --- 侧边栏：极简账户管理 ---
 with st.sidebar:
-    st.title("🛍️ 亚马逊架构师")
+    st.markdown("### 👤 账户")
     if not st.session_state["user"]:
         tab1, tab2 = st.tabs(["登录", "注册"])
         with tab1:
             u = st.text_input("账号", key="l1")
             p = st.text_input("密码", type="password", key="l2")
-            if st.button("登录", type="primary"):
+            if st.button("进入系统", type="primary"):
                 user = login(u, p)
                 if user: st.session_state["user"] = user; st.rerun()
                 else: st.error("错误")
         with tab2:
             u2 = st.text_input("新账号", key="r1")
             p2 = st.text_input("新密码", type="password", key="r2")
-            if st.button("注册"):
+            if st.button("创建账户"):
                 ok, m = register(u2, p2)
                 if ok: st.success(m)
                 else: st.error(m)
     else:
         user = st.session_state["user"]
+        # 实时余额
         try: bal = supabase.table("users").select("balance").eq("username", user["username"]).execute().data[0]["balance"]
         except: bal = 0
         
-        st.markdown(f"""
-        <div style="background:#EEF2FF;padding:15px;border-radius:10px;border:1px solid #C7D2FE;text-align:center;">
-            <div style="color:#4F46E5;font-weight:bold;font-size:24px;">💎 {bal}</div>
-            <div style="color:#6366F1;font-size:12px;">当前点数</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.info(f"用户: {user['username']}")
+        st.markdown(f"<h1 style='color:#0B57D0; margin:0;'>💎 {bal}</h1>", unsafe_allow_html=True)
+        st.caption("可用点数")
         
-        with st.expander("💳 充值中心"):
+        with st.expander("充值"):
             k = st.text_input("卡密")
-            if st.button("充值"):
+            if st.button("兑换"):
                 ok, m = use_card(user["username"], k)
                 if ok: st.success(m); st.rerun()
                 else: st.error(m)
-            # 🔴 替换你的面包多链接
-            st.markdown("[👉 购买点数](https://mbd.pub/)")
-        
+            st.markdown("[👉 购买卡密](https://mbd.pub/)") # 替换链接
+            
         if st.button("退出"): st.session_state["user"]=None; st.rerun()
 
-# --- 主界面 ---
+# --- 主内容区 ---
 
-st.markdown("## 🚀 Amazon Listing Architect")
+# 顶部导航栏 (仿 SaaS)
+st.markdown("""
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <div style="font-size:24px; font-weight:bold; color:#1F1F1F;">✨ Amazon Listing Architect</div>
+    <div style="color:#0B57D0; font-weight:600;">Pro Version 2.0</div>
+</div>
+""", unsafe_allow_html=True)
 
 if not st.session_state["user"]:
-    st.info("👋 请在左侧登录以开始。")
+    st.warning("请在左侧侧边栏登录以开始工作。")
     st.stop()
 
-# 步骤导航
-steps = ["1.识别", "2.类目", "3.文案", "4.视觉", "5.A+页面", "6.视频", "7.预览"]
-current = st.session_state["step"]
-cols = st.columns(len(steps))
-for i, col in enumerate(cols):
-    if i + 1 == current: col.markdown(f"**🔵 {steps[i]}**")
-    elif i + 1 < current: col.markdown(f"✅ {steps[i]}")
-    else: col.markdown(f"<span style='color:lightgrey'>{steps[i]}</span>", unsafe_allow_html=True)
-st.progress(current / 7)
+# 核心工作区 - 采用 "Tab" 布局代替纯进度条，更像软件
+tabs = st.tabs(["1. 产品识别", "2. 文案生成", "3. 视觉规划", "4. 导出结果"])
 
-# === Step 1: 上传与识别 ===
-if current == 1:
-    with st.container():
-        st.markdown("### 📸 产品上传")
-        col1, col2 = st.columns([1,1])
-        with col1:
-            f = st.file_uploader("", type=["jpg", "png"])
-            if f:
-                img = Image.open(f)
-                st.session_state["data"]["image"] = img
-                st.image(img, width=300)
-        with col2:
-            brand = st.text_input("品牌名称", placeholder="Anker", value=st.session_state["data"].get("brand", ""))
+# === Tab 1: 识别 (左图右文布局 - 模仿 Google AI Studio) ===
+with tabs[0]:
+    col1, col2 = st.columns([1, 1.5]) # 左窄右宽
+    
+    with col1:
+        st.markdown("#### 📸 输入区")
+        uploaded_file = st.file_uploader("上传产品图片", type=["jpg", "png"])
+        if uploaded_file:
+            image = Image.open(uploaded_file)
+            st.session_state["data"]["image"] = image
+            st.image(image, use_column_width=True, caption="预览")
+            
+    with col2:
+        st.markdown("#### 🧠 AI 分析区")
+        if uploaded_file:
+            brand = st.text_input("品牌名称 (Brand)", placeholder="例如: Anker")
             st.session_state["data"]["brand"] = brand
             
-            if f and brand:
-                if st.button("开始 AI 识别 (免费)", type="primary"):
-                    with st.spinner("AI 正在分析..."):
-                        info = ai_identify(st.session_state["data"]["image"])
-                        if info:
-                            st.session_state["data"]["info"] = info
-                            st.session_state["step"] = 2
-                            st.rerun()
-                        else: st.error("识别失败")
+            # 使用 expander 隐藏复杂的 Prompt，保持界面干净
+            with st.expander("查看/修改 System Instructions"):
+                prompt_identify = st.text_area("提示词", value="Analyze product image. Extract info in Chinese: productName, material, features, usage.", height=100)
+            
+            if st.button("开始识别 (免费)", type="primary"):
+                with st.spinner("Gemini 正在观察图片..."):
+                    res = ai_process(prompt_identify, image)
+                    # 尝试解析 JSON，如果失败则直接显示文本
+                    json_res = parse_json(res)
+                    if json_res:
+                        st.session_state["data"]["info"] = json_res
+                        st.json(json_res)
+                    else:
+                        st.session_state["data"]["info"] = {"raw": res}
+                        st.write(res)
+                    st.success("识别完成！请切换到 '文案生成' 标签页。")
 
-# === Step 2: 类目 ===
-elif current == 2:
-    st.markdown("### 🌐 类目推荐")
-    info = st.session_state["data"]["info"]
-    
-    # 显示识别结果 (可编辑)
-    c1, c2 = st.columns(2)
-    with c1: st.text_input("产品名", info.get("productName"))
-    with c2: st.text_input("材质", info.get("material"))
-    st.text_area("卖点", info.get("features"))
-    
-    if not st.session_state["data"]["categories"]:
-        with st.spinner("正在分析亚马逊类目..."):
-            cats = ai_recommend_cat(info)
-            if cats: 
-                st.session_state["data"]["categories"] = cats.get("categories", [])
-                st.rerun()
-    
-    cats = st.session_state["data"]["categories"]
-    if cats:
-        sel_cat = st.radio("推荐类目", cats)
-        st.session_state["data"]["cat"] = sel_cat
+# === Tab 2: 文案 (高级参数控制) ===
+with tabs[1]:
+    if not st.session_state["data"].get("info"):
+        st.info("请先在第一步上传并识别产品。")
+    else:
+        c1, c2 = st.columns([2, 1])
         
-        st.divider()
-        if st.button("✨ 生成 Listing 文案 (扣 10 点)", type="primary"):
-            if deduct(st.session_state["user"]["username"], 10):
-                st.session_state["step"] = 3
-                st.rerun()
-            else: st.error("余额不足")
-
-# === Step 3: 文案 ===
-elif current == 3:
-    st.markdown("### 📝 文案生成")
-    if not st.session_state["data"]["listing"]:
-        with st.spinner("Gemini Pro 正在撰写..."):
-            res = ai_write_listing(
-                st.session_state["data"]["image"],
-                st.session_state["data"]["info"],
-                st.session_state["data"]["cat"],
-                st.session_state["data"]["brand"]
-            )
-            if res:
-                st.session_state["data"]["listing"] = res
-                st.rerun()
-    
-    lst = st.session_state["data"]["listing"]
-    if lst:
-        tab1, tab2, tab3 = st.tabs(["🇺🇸 标题", "✅ 五点", "📄 描述"])
-        with tab1:
-            st.text_area("EN", lst.get("titleEn"), height=100)
-            st.caption(lst.get("titleCn"))
-        with tab2:
-            for b in lst.get("bullets", []):
-                st.text_area("Bullet", b.get("en"), height=80)
-                st.caption(b.get("cn"))
-        with tab3:
-            st.text_area("HTML", lst.get("descriptionEn"), height=200)
-            
-        if st.button("下一步：视觉规划"): st.session_state["step"] = 4; st.rerun()
-
-# === Step 4: 图片规划 ===
-elif current == 4:
-    st.markdown("### 🎨 主图与副图规划")
-    if not st.session_state["data"]["image_plan"]:
-        with st.spinner("正在规划..."):
-            res = ai_plan_visuals(st.session_state["data"]["listing"], "main")
-            st.session_state["data"]["image_plan"] = res
-            st.rerun()
-            
-    for p in st.session_state["data"]["image_plan"]:
-        with st.expander(f"📸 {p.get('label')}"):
-            st.code(p.get("prompt"))
-            if st.button("生成此图 (扣2点)", key=p.get('prompt')):
-                if deduct(st.session_state["user"]["username"], 2):
-                    st.image("https://via.placeholder.com/400?text=AI+Image", caption="模拟生成结果")
-                else: st.error("余额不足")
+        with c1:
+            st.markdown("#### 📝 生成结果预览")
+            if st.session_state["data"]["listing"]:
+                l = st.session_state["data"]["listing"]
+                # 尝试如果是JSON就漂亮显示，否则直接显示文本
+                if isinstance(l, dict):
+                    st.text_input("Title", l.get("titleEn", ""))
+                    st.text_area("Bullets", str(l.get("bullets", "")))
+                    st.text_area("Description", l.get("descriptionEn", ""))
+                else:
+                    st.write(l)
+            else:
+                st.markdown("*等待生成...*")
                 
-    if st.button("下一步：A+页面"): st.session_state["step"] = 5; st.rerun()
-
-# === Step 5: A+ 页面 ===
-elif current == 5:
-    st.markdown("### 📄 A+ 页面内容规划")
-    if not st.session_state["data"]["aplus_plan"]:
-        with st.spinner("正在规划 A+ 模块..."):
-            res = ai_plan_visuals(st.session_state["data"]["listing"], "aplus")
-            st.session_state["data"]["aplus_plan"] = res
-            st.rerun()
+        with c2:
+            st.markdown("#### ⚙️ 参数配置")
+            temp = st.slider("创意度 (Temperature)", 0.0, 1.0, 0.7)
             
-    for p in st.session_state["data"]["aplus_plan"]:
-        with st.expander(f"🖼️ {p.get('label')}"):
-            st.code(p.get("prompt"))
+            st.markdown("#### 💰 操作")
+            st.write("预计消耗: **10 点**")
             
-    if st.button("下一步：视频脚本"): st.session_state["step"] = 6; st.rerun()
+            if st.button("✨ 生成 Listing", type="primary"):
+                if deduct(st.session_state["user"]["username"], 10):
+                    prompt_listing = f"""
+                    Role: Expert Amazon Listing Copywriter.
+                    Brand: {st.session_state['data']['brand']}
+                    Info: {st.session_state['data']['info']}
+                    Task: Write Title, 5 Bullets, HTML Description.
+                    Output JSON: {{titleEn, titleCn, bullets, descriptionEn}}
+                    """
+                    with st.spinner("正在撰写文案..."):
+                        res = ai_process(prompt_listing, st.session_state["data"]["image"], "pro")
+                        st.session_state["data"]["listing"] = parse_json(res) or res
+                        st.rerun()
+                else:
+                    st.error("余额不足")
 
-# === Step 6: 视频 ===
-elif current == 6:
-    st.markdown("### 🎥 视频脚本")
-    if not st.session_state["data"]["video"]:
-        with st.spinner("生成视频脚本..."):
-            res = ai_video_script(st.session_state["data"]["listing"].get("titleEn"))
-            st.session_state["data"]["video"] = res
-            st.rerun()
+# === Tab 3: 视觉 ===
+with tabs[2]:
+    if not st.session_state["data"]["listing"]:
+        st.info("请先生成文案。")
+    else:
+        st.markdown("#### 🎨 AI 视觉指导")
+        if st.button("生成拍摄需求 (扣2点)"):
+            if deduct(st.session_state["user"]["username"], 2):
+                prompt_vis = f"Plan 5 Amazon images for: {st.session_state['data']['listing']}. Output JSON list."
+                with st.spinner("规划中..."):
+                    res = ai_process(prompt_vis)
+                    st.session_state["data"]["visuals"] = parse_json(res) or res
+                    st.rerun()
+            else: st.error("余额不足")
             
-    st.text_area("Video Prompt", st.session_state["data"]["video"], height=150)
-    if st.button("下一步：最终预览"): st.session_state["step"] = 7; st.rerun()
+        if st.session_state["data"]["visuals"]:
+            st.json(st.session_state["data"]["visuals"])
 
-# === Step 7: 预览 ===
-elif current == 7:
-    st.markdown("### 👁️ 亚马逊前台预览")
-    
-    # 渲染 React 复刻版预览页
-    html_preview = render_amazon_preview(st.session_state["data"]["listing"])
-    st.markdown(html_preview, unsafe_allow_html=True)
-    
-    st.divider()
-    if st.button("📦 打包下载所有素材"):
-        mem_zip = io.BytesIO()
-        with zipfile.ZipFile(mem_zip, mode="w") as zf:
-            l = st.session_state["data"]["listing"]
-            txt = f"TITLE: {l.get('titleEn')}\n\nBULLETS:\n" + "\n".join([b['en'] for b in l.get('bullets', [])])
-            zf.writestr("listing.txt", txt)
-        st.download_button("点击下载 ZIP", mem_zip.getvalue(), "amazon_assets.zip", "application/zip")
-        
-    if st.button("🔄 开始新项目"):
-        st.session_state["step"] = 1
-        st.session_state["data"] = {"image": None, "brand": "", "info": {}, "categories": [], "listing": {}, "image_plan": [], "aplus_plan": [], "video": ""}
-        st.rerun()
+# === Tab 4: 导出 ===
+with tabs[3]:
+    st.markdown("#### 📦 下载资源包")
+    if st.session_state["data"]["listing"]:
+        # 简单的打包下载
+        txt_data = str(st.session_state["data"]["listing"])
+        st.download_button("下载 Listing (.txt)", txt_data, "listing.txt")
+    else:
+        st.caption("暂无内容可下载")
