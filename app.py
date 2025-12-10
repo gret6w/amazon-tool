@@ -297,7 +297,7 @@ for i, col in enumerate(cols):
     if i + 1 == current: col.markdown(f"**🔵 {steps[i]}**")
     elif i + 1 < current: col.markdown(f"✅ {steps[i]}")
     else: col.markdown(f"<span style='color:lightgrey'>{steps[i]}</span>", unsafe_allow_html=True)
-st.progress(current * (100/7))
+st.progress(current / 7)
 
 # === Step 1: 上传与识别 ===
 if current == 1:
